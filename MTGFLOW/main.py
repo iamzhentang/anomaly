@@ -62,28 +62,28 @@ def save_png(n_by_one_df):
     # 添加网格线以提高可读性
     plt.grid(True, linestyle='--', alpha=0.7)
     # 保存为PNG格式的图片
-    plt.savefig('output/scatter_plot.png', dpi=300, bbox_inches='tight')
+    plt.savefig('output/scatter_plot_seed%d.png'%(args.seed), dpi=300, bbox_inches='tight')
 
 def save_csv(n_by_one_df):
     n_by_one_df.to_csv("output/output.csv", index=False, header=False)
     # print("csv文件已保存")
     # print(n_by_one_df)
 
-class optuna_param_demo:
-    import optuna
-    def objective(trial):
-        x = trial.suggest_uniform('x', -10, 10)
-        return (x - 2) ** 2
+# class optuna_param_demo:
+#     import optuna
+#     def objective(trial):
+#         x = trial.suggest_uniform('x', -10, 10)
+#         return (x - 2) ** 2
 
 
-    if __name__ == '__main__':
-        study = optuna.create_study()
-        study.optimize(objective, n_trials=100)
-        print('Best value: {} (params: {})\n'.format(study.best_value, study.best_params))
+#     if __name__ == '__main__':
+#         study = optuna.create_study()
+#         study.optimize(objective, n_trials=100)
+#         print('Best value: {} (params: {})\n'.format(study.best_value, study.best_params))
 
 
 for seed in range(15,20):
-    args.seed = seed
+    args.seed = 20
     print(args)
     import random
     import numpy as np
@@ -93,7 +93,7 @@ for seed in range(15,20):
     if args.cuda:
         torch.cuda.manual_seed(args.seed)
     #%%
-    print("Loading dataset seed is %d"%seed)
+    print("Loading dataset seed is %d"%args.seed)
     print(args.name)
     from Dataset import load_smd_smap_msl, loader_SWat, loader_WADI, loader_PSM, loader_WADI_OCC
 
@@ -122,6 +122,8 @@ for seed in range(15,20):
     #%%
     from torch.nn.utils import clip_grad_value_
     import seaborn as sns
+    import matplotlib
+    matplotlib.use('Agg')  # 或者 'TkAgg'
     import matplotlib.pyplot as plt
     save_path = os.path.join(args.output_dir,args.name)
     if not os.path.exists(save_path):
