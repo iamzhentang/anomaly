@@ -74,6 +74,7 @@ def objective(trial):
     n_blocks_t = trial.suggest_int("n_blocks", 1, 10)
     hidden_size_t = trial.suggest_int("hidden_size", 16, 128)
     n_hidden_t = trial.suggest_int("n_hidden", 1, 3)
+    # batch size \ window size
     # input_size_t = trial.suggest_categorical("input_size", [1, 2, 3])
     # dropout_t = trial.suggest_float("dropout",0, 1e-1)
     optimizer_name_t = trial.suggest_categorical("optimizer", ["Adam", "RMSprop", "SGD"])
@@ -107,9 +108,11 @@ def objective(trial):
 
             optimizer.zero_grad()
             loss = -model(x,) # 返回负的似然估计平均值,此处再加个负号变为正数,符合我们的逻辑
+            print("train_loss is",loss)
             total_loss = loss
             total_loss.backward()
             clip_grad_value_(model.parameters(), 1)
+            # clip loss or normalize loss
             optimizer.step()
             # loss_train.append(loss.item())
             train_loss += loss.item()
@@ -126,6 +129,7 @@ def objective(trial):
                     break
                 x = x.to(DEVICE)
                 loss = -model.test(x, ).cpu().numpy()
+                print("val_loss is",loss)
                 if isinstance(loss,(list,np.ndarray)):
                     loss = loss[0]
                     # print("loss is list")
@@ -151,10 +155,14 @@ def objective(trial):
 
 
 if __name__ == "__main__":
-    storage_name = "sqlite:///optuna.db"
+    # storage_name = "sqlite:///optuna.db"
+    # study = optuna.create_study(
+    #     pruner=optuna.pruners.MedianPruner(n_warmup_steps=3), direction="minimize",
+    #     study_name="MTGFLOW", storage=storage_name,load_if_exists=True
+    # )
     study = optuna.create_study(
-        pruner=optuna.pruners.MedianPruner(n_warmup_steps=3), direction="minimize",
-        study_name="MTGFLOW", storage=storage_name,load_if_exists=True
+        pruner=optuna.pruners.MedianPruner(n_warmup_steps=3), direction="maximize",
+        study_name="MTGFLOW",load_if_exists=True
     )
     
     study.optimize(objective, n_trials=20, timeout=1200)

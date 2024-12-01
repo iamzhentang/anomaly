@@ -135,7 +135,10 @@ def loader_WADI(root, batch_size, window_size, stride_size,train_split,label=Fal
     
     
     # data = pd.read_csv("Dataset/input/t0.csv",sep=",", nrows=1000)
-    data = pd.read_csv("Dataset/input/t0.csv",sep=",")#, nrows=1000)
+    # data = pd.read_csv("Dataset/input/t0.csv",sep=",")#, nrows=1000)
+    data = pd.read_csv("%s"%root,sep=",")#, nrows=1000)
+
+
     labels=[]
 
 
