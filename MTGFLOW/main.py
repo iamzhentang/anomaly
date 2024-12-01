@@ -33,36 +33,69 @@ parser.add_argument('--weight_decay', type=float, default=5e-4)
 parser.add_argument('--window_size', type=int, default=60)
 parser.add_argument('--lr', type=float, default=2e-3, help='Learning rate.')
 
-
+print("Using %d CPUs for training" % 16)
+cpu_num = 16 # 这里设置成你想运行的CPU个数
+torch.set_num_threads(cpu_num)
+print("Using %d CPUs for training" % cpu_num)
 
 args = parser.parse_known_args()[0]
 args.cuda = torch.cuda.is_available()
 device = torch.device("cuda" if args.cuda else "cpu")
 
-def save_png(n_by_one_df):
+# def save_png(n_by_one_df, x_axis=500, y_axis_l=0, y_axis_h=6):
+#     # 创建x轴的序号
+#     x = np.arange(n_by_one_df.shape[1])
+
+#     # 获取y轴的值（取绝对值）
+#     y = np.abs(n_by_one_df.values).flatten()
+
+#     # 创建散点图
+#     plt.figure(figsize=(10, 6))
+#     plt.scatter(x, y, alpha=0.6)
+
+#     # 设置坐标轴范围
+#     plt.xlim(0, x_axis)  # 设置x轴范围为0-500
+#     plt.ylim(y_axis_l, y_axis_h)    # 设置y轴范围为0-6
+
+#     # 添加标题和轴标签
+#     plt.title('Scatter Plot of Absolute Values')
+#     plt.xlabel('Index')
+#     plt.ylabel('Absolute Value')
+
+#     # 添加网格线以提高可读性
+#     plt.grid(True, linestyle='--', alpha=0.7)
+#     # 保存为PNG格式的图片
+#     plt.savefig('output/scatter_plot_seed%d.png'%(args.seed), dpi=300, bbox_inches='tight')
+
+def save_png(n_by_one_df, fig, x_axis=500, y_axis_l=0, y_axis_h=6, seed=None):
     # 创建x轴的序号
     x = np.arange(n_by_one_df.shape[1])
 
     # 获取y轴的值（取绝对值）
     y = np.abs(n_by_one_df.values).flatten()
 
-    # 创建散点图
-    plt.figure(figsize=(10, 6))
-    plt.scatter(x, y, alpha=0.6)
+    # 在现有figure上创建散点图
+    ax = fig.gca()
+    ax.scatter(x, y, alpha=0.6, label=f'Seed {seed}')
 
     # 设置坐标轴范围
-    plt.xlim(0, 500)  # 设置x轴范围为0-500
-    plt.ylim(0, 6)    # 设置y轴范围为0-6
+    ax.set_xlim(0, x_axis)  # 设置x轴范围为0-500
+    ax.set_ylim(y_axis_l, y_axis_h)    # 设置y轴范围为0-6
 
     # 添加标题和轴标签
-    plt.title('Scatter Plot of Absolute Values')
-    plt.xlabel('Index')
-    plt.ylabel('Absolute Value')
+    ax.set_title('Scatter Plot of Absolute Values')
+    ax.set_xlabel('Index')
+    ax.set_ylabel('Absolute Value')
 
     # 添加网格线以提高可读性
-    plt.grid(True, linestyle='--', alpha=0.7)
-    # 保存为PNG格式的图片
-    plt.savefig('output/scatter_plot_seed%d.png'%(args.seed), dpi=300, bbox_inches='tight')
+    ax.grid(True, linestyle='--', alpha=0.7)
+    ax.legend()
+
+def save_all_pngs(dataframes, seeds, x_axis=500, y_axis_l=0, y_axis_h=6):
+    fig = plt.figure(figsize=(10, 6))
+    for df, seed in zip(dataframes, seeds):
+        save_png(df, fig, x_axis, y_axis_l, y_axis_h, seed)
+    plt.savefig('output/scatter_plot_all_seeds.png', dpi=300, bbox_inches='tight')
 
 def save_csv(n_by_one_df):
     n_by_one_df.to_csv("output/output.csv", index=False, header=False)
@@ -81,9 +114,10 @@ def save_csv(n_by_one_df):
 #         study.optimize(objective, n_trials=100)
 #         print('Best value: {} (params: {})\n'.format(study.best_value, study.best_params))
 
-
-for seed in range(15,20):
-    args.seed = 20
+seed_list = [15, 16, 17, 18, 19, 20]
+dataframes = []
+for seed in range(15,21):
+    args.seed = seed
     print(args)
     import random
     import numpy as np
@@ -197,7 +231,9 @@ for seed in range(15,20):
             # print(loss_test)
             # 转dataframe
             n_by_one_df = pd.DataFrame([loss_test])
-            save_png(n_by_one_df)
-            save_csv(n_by_one_df)
+            dataframes.append(n_by_one_df)
+            seed_list.append(seed)
+            # save_csv(n_by_one_df)
             print("================================================\n\n")
+save_all_pngs(dataframes, seed_list, x_axis=1000, y_axis_l=0, y_axis_h=7)
 

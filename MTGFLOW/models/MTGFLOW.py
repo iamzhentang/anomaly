@@ -186,7 +186,7 @@ class MTGFLOW(nn.Module):
         vvvvvvvvvvvvvvvvvvvvv'''
         # TODO
         # log_prob = self.nf.log_prob(x, full_shape[1], full_shape[2], h).reshape([full_shape[0],-1])
-        log_prob = self.nf.log_prob(x, full_shape[1], full_shape[2]).reshape([full_shape[0],-1])
+        log_prob = self.nf.log_prob(x, full_shape[1], full_shape[2], h).reshape([full_shape[0],-1])
         # log_prob重塑为一个二维张量，其中第一个维度是批次大小，第二个维度是自动计算的。以便可以进一步处理或用于损失计算
         log_prob = log_prob.mean(dim=1)
 

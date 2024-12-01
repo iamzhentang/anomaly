@@ -136,7 +136,7 @@ def loader_WADI(root, batch_size, window_size, stride_size,train_split,label=Fal
     
     # data = pd.read_csv("Dataset/input/t0.csv",sep=",", nrows=1000)
     # data = pd.read_csv("Dataset/input/t0.csv",sep=",")#, nrows=1000)
-    data = pd.read_csv("%s"%root,sep=",")#, nrows=1000)
+    data = pd.read_csv("%s"%root,sep=",", nrows=2000)
 
 
     labels=[]
@@ -144,7 +144,10 @@ def loader_WADI(root, batch_size, window_size, stride_size,train_split,label=Fal
 
     for index, row in data.iterrows():
         date_temp=row['date']
-        date_mask="%Y/%m/%d"
+        if 'total_daily_state_emission' in root:
+            date_mask="%Y-%m-%d"
+        else:
+            date_mask="%Y/%m/%d"
         date_obj=datetime.strptime(date_temp, date_mask)
         # time_temp=row['Time']
         # time_mask="%I:%M:%S.%f %p"
@@ -203,10 +206,13 @@ def loader_WADI(root, batch_size, window_size, stride_size,train_split,label=Fal
 
     # print(Timestamp)
     # data=data.drop(data.columns[[0,1,2,50,51,86,87]],axis=1) # Drop the empty and date/time columns
-    data=data.drop(data.columns[[0]],axis=1)
+    if 'total_daily_state_emission' in root:
+        data=data.drop(data.columns[[0,1]],axis=1)
+    else:
+        data=data.drop(data.columns[[0]],axis=1)
     labels = [ int(l!= 'Normal' ) for l in labels]
     # print("check labels")
-    # print(labels)
+    # print(data.head(10))
 
 
     data = data.astype(float)
