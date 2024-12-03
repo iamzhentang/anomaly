@@ -7,6 +7,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from models.NF import MAF
 import torch
+import pandas as pd
 
 def interpolate(tensor, index, target_size, mode = 'nearest', dim = 0):
     print(tensor.shape)
@@ -137,7 +138,17 @@ class MTGFLOW(nn.Module):
     def __init__ (self, n_blocks, input_size, hidden_size, n_hidden, window_size, n_sensor, dropout = 0.1, model="MAF", batch_norm=True):
         super(MTGFLOW, self).__init__()
 
-        self.rnn = nn.LSTM(input_size=input_size,hidden_size=hidden_size,batch_first=True, dropout=dropout)
+        # self.rnn = nn.LSTM(input_size=input_size,hidden_size=hidden_size,batch_first=True, dropout=dropout)
+        # 创建31个独立的LSTM,每个处理一个特征列
+        self.hidden_size = hidden_size
+        self.lstm_list = nn.ModuleList([
+            nn.LSTM(
+                input_size=input_size,
+                hidden_size=hidden_size,
+                dropout=dropout,
+                batch_first=True
+            ) for _ in range(n_sensor)
+        ])
         self.gcn = GNN(input_size=hidden_size, hidden_size=hidden_size)
         if model=="MAF":
             # self.nf = MAF(n_blocks, n_sensor, input_size, hidden_size, n_hidden, cond_label_size=hidden_size, batch_norm=batch_norm,activation='tanh', mode = 'zero')
@@ -146,49 +157,50 @@ class MTGFLOW(nn.Module):
         self.attention = ScaleDotProductAttention(window_size*input_size)
     def forward(self, x, ):
 
-        return self.test(x, ).mean()
+        return self.test(x, ).mean(dim=0)
 
     def test(self, x, ):
         # x: N · K · L · D 
-        # N 表示batch中的样本数量
-        # 𝐾 表示每个样本的实体总数
-        # 𝐿 表示每个实体的观测总数
-        # D 表示每个观测的特征数量
-        # x shape [batch_size, head, length, d_tensor]
-        full_shape = x.shape # 有4个维度，N K L D
-        # print(full_shape)
+        # x shape [batch_size, num_features, window_size, 1]
+        # N 表示batch中的窗口数量
+        # 𝐾 表示每个窗口的特征数量
+        # 𝐿 表示每个窗口的观测总数
+        # D 维持为1，用于维系列表形式
+        full_shape = x.shape
+        print('MTGFLOWfull_shape',full_shape)
         graph,_ = self.attention(x) #返回score，key，学习邻居矩阵A
+        print('MTGFLOWgraph',graph.shape)
         self.graph = graph
-        # reshape: N*K, L, D
-        x = x.reshape((x.shape[0]*x.shape[1], x.shape[2], x.shape[3]))
-        h,_ = self.rnn(x) # 只保留整个序列的信息 h，h包含了输入序列x的时间动态信息
-        '''
-        h 是 LSTM 层的输出，它是一个三维张量，其形状为 (num_layers * num_directions, batch_size, hidden_size)。
-        num_layers 是 LSTM 网络的层数。
-        num_directions 表示 LSTM 是否是双向的，单向为 1，双向为 2。
-        hidden_size 是 LSTM 层的隐藏状态大小，这个大小通常由模型设计者指定，用于捕捉输入数据的高级特征表示。
-        '''
 
-        # resahpe: N, K, L, H
-        h = h.reshape((full_shape[0], full_shape[1], h.shape[1], h.shape[2]))# 把num_layers * num_directions丢掉，不需要
+        # 对每个特征列分别进行LSTM处理
+        h = torch.zeros(full_shape[0], full_shape[1], full_shape[2], self.hidden_size)
+        for i in range(full_shape[1]):
+            # 提取当前特征列 [batch_size, window_size, 1]
+            curr_feature = x[:, i, :, :]
+            
+            # LSTM处理
+            lstm_out, _ = self.lstm_list[i](curr_feature)
+            # lstm_out shape: [batch_size, window_size, hidden_size]
+            
+            # 将结果存入对应位置
+            h[:, i, :, :] = lstm_out
+        print('MTGFLOWafterrnn',h.shape)
         h = self.gcn(h, graph)# x的特征经过LSTM提取后，用h替换掉x的特征。新的x与邻居矩阵A卷积——>实现公式11
+        print('MTGFLOWaftergcn',h.shape)
 
         # reshappe N*K*L,H
-        h = h.reshape((-1,h.shape[3]))# 展平为二维数据，其中第一个维度是批次中的元素总数，第二个维度是每个元素的LSTM后的特征数。
+        h = h.reshape((-1,h.shape[3]))# 展平为二维数据，其中第一个维度是批次中的元素总数，第二个维度是hidden_size。
+        print('MTGFLOWafterreshape2',h.shape)
         # reshappe N*K*L,D
-        x = x.reshape((-1,full_shape[3]))# 展平为二维数据，其中第一个维度是批次中的元素总数，第二个维度是每个元素LSTM前的特征数。
-        '''
-        #该方法计算了输入 x 和 h 的对数概率
-        然后使用MAF进行归一化流
-        full_shape[1]：是实体（窗口）的总数
-        full_shape[2]：是log_prob的window_size
-        h：是LSTM提取的特征，是y
-        vvvvvvvvvvvvvvvvvvvvv'''
-        # TODO
-        # log_prob = self.nf.log_prob(x, full_shape[1], full_shape[2], h).reshape([full_shape[0],-1])
+        x = x.reshape((-1,full_shape[3]))# 展平为二维数据，其中第一个维度是批次中的元素总数，第二个维度是1（为了维持列表形式）。
+        print('MTGFLOWafterreshape3',x.shape)
+
         log_prob = self.nf.log_prob(x, full_shape[1], full_shape[2], h).reshape([full_shape[0],-1])
+        print('MTGFLOWafterlog_prob',log_prob.shape)
+        log_prob = log_prob.reshape(full_shape[0], full_shape[1], full_shape[2])
         # log_prob重塑为一个二维张量，其中第一个维度是批次大小，第二个维度是自动计算的。以便可以进一步处理或用于损失计算
-        log_prob = log_prob.mean(dim=1)
+        log_prob = log_prob.mean(dim=2)
+        print('MTGFLOWaftermean',log_prob.shape)
 
         return log_prob
 

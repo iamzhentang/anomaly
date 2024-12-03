@@ -222,6 +222,12 @@ def loader_WADI(root, batch_size, window_size, stride_size,train_split,label=Fal
     print('sensor',n_sensor)
 
     feature = data
+    # ###############################################
+    # feature = feature.values.tolist()
+    # norm_feature = pd.DataFrame(feature, index = Timestamp, columns=data.columns)
+    # # print(norm_feature)
+    # ###############################################
+
     scaler = StandardScaler()
     norm_feature = scaler.fit_transform(feature)
     norm_feature = pd.DataFrame(norm_feature, index = Timestamp, columns=data.columns)
@@ -239,10 +245,10 @@ def loader_WADI(root, batch_size, window_size, stride_size,train_split,label=Fal
     test_label = labels[int(train_split*len(data)):]
     print('testset size',test_df.shape, 'anomaly ration', sum(test_label)/len(test_label))
 
-    if label:
-        train_loader = DataLoader(WADI_dataset(train_df,train_label, window_size, stride_size), batch_size=batch_size, shuffle=False)
-    else:
-        train_loader = DataLoader(WADI_dataset(train_df,train_label, window_size, stride_size), batch_size=batch_size, shuffle=True)
+    # if label:
+    train_loader = DataLoader(WADI_dataset(train_df,train_label, window_size, stride_size), batch_size=batch_size, shuffle=False)
+    # else:
+    #     train_loader = DataLoader(WADI_dataset(train_df,train_label, window_size, stride_size), batch_size=batch_size, shuffle=True)
     val_loader = DataLoader(WADI_dataset(val_df,val_label, window_size, stride_size), batch_size=batch_size, shuffle=False)
     test_loader = DataLoader(WADI_dataset(test_df,test_label, window_size, stride_size), batch_size=batch_size, shuffle=False)
 

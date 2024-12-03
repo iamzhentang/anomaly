@@ -42,30 +42,30 @@ args = parser.parse_known_args()[0]
 args.cuda = torch.cuda.is_available()
 device = torch.device("cuda" if args.cuda else "cpu")
 
-# def save_png(n_by_one_df, x_axis=500, y_axis_l=0, y_axis_h=6):
-#     # 创建x轴的序号
-#     x = np.arange(n_by_one_df.shape[1])
+def save_each_png(n_by_one_df, x_axis=500, y_axis_l=0, y_axis_h=6):
+    # 创建x轴的序号
+    x = np.arange(n_by_one_df.shape[1])
 
-#     # 获取y轴的值（取绝对值）
-#     y = np.abs(n_by_one_df.values).flatten()
+    # 获取y轴的值（取绝对值）
+    y = np.abs(n_by_one_df.values).flatten()
 
-#     # 创建散点图
-#     plt.figure(figsize=(10, 6))
-#     plt.scatter(x, y, alpha=0.6)
+    # 创建散点图
+    plt.figure(figsize=(10, 6))
+    plt.scatter(x, y, alpha=0.6)
 
-#     # 设置坐标轴范围
-#     plt.xlim(0, x_axis)  # 设置x轴范围为0-500
-#     plt.ylim(y_axis_l, y_axis_h)    # 设置y轴范围为0-6
+    # 设置坐标轴范围
+    plt.xlim(0, x_axis)  # 设置x轴范围为0-500
+    plt.ylim(y_axis_l, y_axis_h)    # 设置y轴范围为0-6
 
-#     # 添加标题和轴标签
-#     plt.title('Scatter Plot of Absolute Values')
-#     plt.xlabel('Index')
-#     plt.ylabel('Absolute Value')
+    # 添加标题和轴标签
+    plt.title('Scatter Plot of Absolute Values')
+    plt.xlabel('Index')
+    plt.ylabel('Absolute Value')
 
-#     # 添加网格线以提高可读性
-#     plt.grid(True, linestyle='--', alpha=0.7)
-#     # 保存为PNG格式的图片
-#     plt.savefig('output/scatter_plot_seed%d.png'%(args.seed), dpi=300, bbox_inches='tight')
+    # 添加网格线以提高可读性
+    plt.grid(True, linestyle='--', alpha=0.7)
+    # 保存为PNG格式的图片
+    plt.savefig('output/scatter_plot_seed%d.png'%(args.seed), dpi=300, bbox_inches='tight')
 
 def save_png(n_by_one_df, fig, x_axis=500, y_axis_l=0, y_axis_h=6, seed=None):
     # 创建x轴的序号
@@ -98,21 +98,10 @@ def save_all_pngs(dataframes, seeds, x_axis=500, y_axis_l=0, y_axis_h=6):
     plt.savefig('output/scatter_plot_all_seeds.png', dpi=300, bbox_inches='tight')
 
 def save_csv(n_by_one_df):
-    n_by_one_df.to_csv("output/output.csv", index=False, header=False)
+    n_by_one_df.to_csv("output/output_seed%d.csv"%(args.seed), index=False, header=False)
     # print("csv文件已保存")
     # print(n_by_one_df)
 
-# class optuna_param_demo:
-#     import optuna
-#     def objective(trial):
-#         x = trial.suggest_uniform('x', -10, 10)
-#         return (x - 2) ** 2
-
-
-#     if __name__ == '__main__':
-#         study = optuna.create_study()
-#         study.optimize(objective, n_trials=100)
-#         print('Best value: {} (params: {})\n'.format(study.best_value, study.best_params))
 
 seed_list = [15, 16, 17, 18, 19, 20]
 dataframes = []
@@ -182,22 +171,33 @@ for seed in range(15,21):
         model.train()
         for x,_,idx in train_loader:
             x = x.to(device)
+            print('mainpy x_shape',x.shape)
 
             optimizer.zero_grad()
             '''
             model根据时间序列的数量，例化多个
             '''
+            print("====================ROUND%d====================="%(epoch))
+            print("epoch is %d, batch idx is %s" % (epoch, idx[0]))
+            print('mainpy x_shape',x.shape)
+            # print(x[0])
             loss = -model(x,) # 返回负的似然估计平均值,此处再加个负号变为正数,符合我们的逻辑
+            print('mainpy loss',loss.shape)
             '''
             不同loss之间直接相加
             '''
-            total_loss = loss
+            total_loss = loss.mean()
 
             total_loss.backward()
             clip_grad_value_(model.parameters(), 1)
             optimizer.step()
-            loss_train.append(loss.item())
+            # loss_train.append(loss.item())
+            loss_train.append(loss.detach())
+            print("loss_trainshape",np.array(loss_train).shape)
+            print("================================================\n\n")
 
+        # if epoch == 0:
+        #     exit()
 
 
         loss_test = []
@@ -206,8 +206,11 @@ for seed in range(15,21):
 
                 x = x.to(device)
                 loss = -model.test(x, ).cpu().numpy()
+                print("lossshape0",loss.shape)
                 loss_test.append(loss)
-        loss_test = np.concatenate(loss_test)
+        print("loss_testshape0",len(loss_test))
+        loss_test = np.concatenate(loss_test, axis=0)
+        print("loss_testshape1",loss_test.shape)
 
         # print("aaaaaaa")
         # print(loss_test)
@@ -230,10 +233,11 @@ for seed in range(15,21):
             # print(roc_max)
             # print(loss_test)
             # 转dataframe
-            n_by_one_df = pd.DataFrame([loss_test])
+            n_by_one_df = pd.DataFrame(loss_test)
+            # save_each_png(n_by_one_df, x_axis=1000, y_axis_l=0, y_axis_h=7)
             dataframes.append(n_by_one_df)
             seed_list.append(seed)
-            # save_csv(n_by_one_df)
+            save_csv(n_by_one_df)
             print("================================================\n\n")
-save_all_pngs(dataframes, seed_list, x_axis=1000, y_axis_l=0, y_axis_h=7)
+# save_all_pngs(dataframes, seed_list, x_axis=1000, y_axis_l=0, y_axis_h=7)
 

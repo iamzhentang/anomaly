@@ -1,1 +1,1 @@
-CUDA_VISIBLE_DEVICES=0 python3 test.py  --name Wadi --n_blocks 2
+CUDA_VISIBLE_DEVICES=0 python3 test.py  --name=Wadi --n_blocks=2 --data_dir='Dataset/input/total_daily_state_emission.csv' > WADI.log 2>&1 &
