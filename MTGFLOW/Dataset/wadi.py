@@ -5,6 +5,9 @@ from sklearn.preprocessing import StandardScaler, MinMaxScaler
 import pandas as pd
 import numpy as np
 from datetime import datetime
+import logging
+
+logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 
 def loader_WADI_OCC(root, batch_size, window_size, stride_size, train_split,label=False):
 
@@ -17,7 +20,7 @@ def loader_WADI_OCC(root, batch_size, window_size, stride_size, train_split,labe
     data = data.astype(float)
     n_sensor = len(data.columns)
 
-    print('sensor',n_sensor)
+    logging.info('sensor%d',n_sensor)
     #%%
     feature = data
 
@@ -32,7 +35,7 @@ def loader_WADI_OCC(root, batch_size, window_size, stride_size, train_split,labe
 
     train_df = norm_feature.iloc[:]
     train_label = labels[:]
-    print('trainset size',train_df.shape, 'anomaly ration', sum(train_label)/len(train_label))
+    logging.info('trainset size%d',train_df.shape, 'anomaly ration%f', sum(train_label)/len(train_label))
   
    
     val_df = norm_feature.iloc[int(train_split*len(data)):]

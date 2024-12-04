@@ -7,10 +7,13 @@ import torch.nn as nn
 import torch.nn.functional as F
 from models.NF import MAF
 import torch
-import pandas as pd
+import logging
+
+logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+
 
 def interpolate(tensor, index, target_size, mode = 'nearest', dim = 0):
-    print(tensor.shape)
+    logging.info(tensor.shape)
     source_length = tensor.shape[dim]
     if source_length > target_size:
         raise AttributeError('no need to interpolate')
@@ -43,10 +46,10 @@ class GNN(nn.Module):
     def forward(self, h, A):
         ## A: K · K
         ## H: N · K  · L · D
-        # print(h.shape, A.shape)
+        # logging.debug(h.shape, A.shape)
         # h_n = self.lin_n(torch.einsum('nkld,kj->njld',h,A))
         # h_n = self.lin_n(torch.einsum('nkld,kj->njld',h,A))
-        # print(h.shape, A.shape)
+        # logging.debug(h.shape, A.shape)
         h_n = self.lin_n(torch.einsum('nkld,nkj->njld',h,A))
         '''
         获取窗口下所有t时刻及其历史信息的时空条件：
@@ -167,13 +170,13 @@ class MTGFLOW(nn.Module):
         # 𝐿 表示每个窗口的观测总数
         # D 维持为1，用于维系列表形式
         full_shape = x.shape
-        print('MTGFLOWfull_shape',full_shape)
+        logging.debug('MTGFLOWfull_shape%s',full_shape)
         graph,_ = self.attention(x) #返回score，key，学习邻居矩阵A
-        print('MTGFLOWgraph',graph.shape)
+        logging.debug('MTGFLOWgraph%s',graph.shape)
         self.graph = graph
 
         # 对每个特征列分别进行LSTM处理
-        h = torch.zeros(full_shape[0], full_shape[1], full_shape[2], self.hidden_size)
+        h = torch.zeros(full_shape[0], full_shape[1], full_shape[2], self.hidden_size).to(x.device)
         for i in range(full_shape[1]):
             # 提取当前特征列 [batch_size, window_size, 1]
             curr_feature = x[:, i, :, :]
@@ -184,23 +187,23 @@ class MTGFLOW(nn.Module):
             
             # 将结果存入对应位置
             h[:, i, :, :] = lstm_out
-        print('MTGFLOWafterrnn',h.shape)
+        logging.debug('MTGFLOWafterrnn %s',h.shape)
         h = self.gcn(h, graph)# x的特征经过LSTM提取后，用h替换掉x的特征。新的x与邻居矩阵A卷积——>实现公式11
-        print('MTGFLOWaftergcn',h.shape)
+        logging.debug('MTGFLOWaftergcn %s',h.shape)
 
         # reshappe N*K*L,H
         h = h.reshape((-1,h.shape[3]))# 展平为二维数据，其中第一个维度是批次中的元素总数，第二个维度是hidden_size。
-        print('MTGFLOWafterreshape2',h.shape)
+        logging.debug('MTGFLOWafterreshape2 %s',h.shape)
         # reshappe N*K*L,D
         x = x.reshape((-1,full_shape[3]))# 展平为二维数据，其中第一个维度是批次中的元素总数，第二个维度是1（为了维持列表形式）。
-        print('MTGFLOWafterreshape3',x.shape)
+        logging.debug('MTGFLOWafterreshape3 %s',x.shape)
 
         log_prob = self.nf.log_prob(x, full_shape[1], full_shape[2], h).reshape([full_shape[0],-1])
-        print('MTGFLOWafterlog_prob',log_prob.shape)
+        logging.debug('MTGFLOWafterlog_prob %s',log_prob.shape)
         log_prob = log_prob.reshape(full_shape[0], full_shape[1], full_shape[2])
         # log_prob重塑为一个二维张量，其中第一个维度是批次大小，第二个维度是自动计算的。以便可以进一步处理或用于损失计算
         log_prob = log_prob.mean(dim=2)
-        print('MTGFLOWaftermean',log_prob.shape)
+        logging.debug('MTGFLOWaftermean %s',log_prob.shape)
 
         return log_prob
 

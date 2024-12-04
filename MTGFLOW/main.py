@@ -6,6 +6,9 @@ from models.MTGFLOW import MTGFLOW
 import numpy as np
 from sklearn.metrics import roc_auc_score, precision_recall_curve 
 import pandas as pd
+import logging
+logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+
 
 parser = argparse.ArgumentParser()
 
@@ -33,10 +36,10 @@ parser.add_argument('--weight_decay', type=float, default=5e-4)
 parser.add_argument('--window_size', type=int, default=60)
 parser.add_argument('--lr', type=float, default=2e-3, help='Learning rate.')
 
-print("Using %d CPUs for training" % 16)
-cpu_num = 16 # 这里设置成你想运行的CPU个数
+logging.info("Using %d CPUs for training" % 16)
+cpu_num = 32 # 这里设置成你想运行的CPU个数
 torch.set_num_threads(cpu_num)
-print("Using %d CPUs for training" % cpu_num)
+logging.info("Using %d CPUs for training" % cpu_num)
 
 args = parser.parse_known_args()[0]
 args.cuda = torch.cuda.is_available()
@@ -99,15 +102,15 @@ def save_all_pngs(dataframes, seeds, x_axis=500, y_axis_l=0, y_axis_h=6):
 
 def save_csv(n_by_one_df):
     n_by_one_df.to_csv("output/output_seed%d.csv"%(args.seed), index=False, header=False)
-    # print("csv文件已保存")
-    # print(n_by_one_df)
+    # logging.debug("csv文件已保存")
+    # logging.debug(n_by_one_df)
 
 
 seed_list = [15, 16, 17, 18, 19, 20]
 dataframes = []
 for seed in range(15,21):
-    args.seed = seed
-    print(args)
+    args.seed = 16
+    logging.info(args)
     import random
     import numpy as np
     random.seed(args.seed)
@@ -116,8 +119,8 @@ for seed in range(15,21):
     if args.cuda:
         torch.cuda.manual_seed(args.seed)
     #%%
-    print("Loading dataset seed is %d"%args.seed)
-    print(args.name)
+    logging.info("Loading dataset seed is %d"%args.seed)
+    logging.info(args.name)
     from Dataset import load_smd_smap_msl, loader_SWat, loader_WADI, loader_PSM, loader_WADI_OCC
 
     if args.name == 'SWaT':
@@ -165,24 +168,24 @@ for seed in range(15,21):
         ], lr=lr, weight_decay=0.0)
 
     for epoch in range(40):
-        # print(epoch)
+        # logging.debug(epoch)
         loss_train = []
 
         model.train()
         for x,_,idx in train_loader:
             x = x.to(device)
-            print('mainpy x_shape',x.shape)
+            logging.debug('mainpy x_shape %s',x.shape)
 
             optimizer.zero_grad()
             '''
             model根据时间序列的数量，例化多个
             '''
-            print("====================ROUND%d====================="%(epoch))
-            print("epoch is %d, batch idx is %s" % (epoch, idx[0]))
-            print('mainpy x_shape',x.shape)
-            # print(x[0])
+            logging.debug("====================ROUND%d====================="%(epoch))
+            logging.debug("epoch is %d, batch idx is %s" % (epoch, idx[0]))
+            logging.debug('mainpy x_shape%s',x.shape)
+            # logging.debug(x[0])
             loss = -model(x,) # 返回负的似然估计平均值,此处再加个负号变为正数,符合我们的逻辑
-            print('mainpy loss',loss.shape)
+            logging.debug('mainpy loss %s',loss.shape)
             '''
             不同loss之间直接相加
             '''
@@ -192,12 +195,9 @@ for seed in range(15,21):
             clip_grad_value_(model.parameters(), 1)
             optimizer.step()
             # loss_train.append(loss.item())
-            loss_train.append(loss.detach())
-            print("loss_trainshape",np.array(loss_train).shape)
-            print("================================================\n\n")
-
-        # if epoch == 0:
-        #     exit()
+            loss_train.append(loss.detach().cpu())
+            logging.debug("loss_trainshape %s",np.array(loss_train).shape)
+            logging.debug("================================================\n\n")
 
 
         loss_test = []
@@ -206,17 +206,17 @@ for seed in range(15,21):
 
                 x = x.to(device)
                 loss = -model.test(x, ).cpu().numpy()
-                print("lossshape0",loss.shape)
+                logging.debug("lossshape0 %s",loss.shape)
                 loss_test.append(loss)
-        print("loss_testshape0",len(loss_test))
+        logging.debug("loss_testshape0 %s",len(loss_test))
         loss_test = np.concatenate(loss_test, axis=0)
-        print("loss_testshape1",loss_test.shape)
+        logging.debug("loss_testshape1 %s",loss_test.shape)
 
-        # print("aaaaaaa")
-        # print(loss_test)
+        # logging.debug("aaaaaaa")
+        # logging.debug(loss_test)
         # unique_labels, counts = np.unique(np.asarray(test_loader.dataset.label, dtype=int), return_counts=True)
-        # print("Unique labels:", unique_labels)
-        # print("Label counts:", counts)
+        # logging.debug("Unique labels:", unique_labels)
+        # logging.debug("Label counts:", counts)
     
         # roc_test = roc_auc_score(np.asarray(test_loader.dataset.label,dtype=int),loss_test)
 
@@ -229,15 +229,42 @@ for seed in range(15,21):
 
         # roc_max = max(roc_test, roc_max)
         if epoch == 39:
-            print("====================ROUND%d====================="%(epoch))
-            # print(roc_max)
-            # print(loss_test)
+            logging.info("====================ROUND%d====================="%(epoch))
+            # logging.info(roc_max)
+            # logging.info(loss_test)
             # 转dataframe
             n_by_one_df = pd.DataFrame(loss_test)
+            logging.debug("n_by_one_dfshape %s",n_by_one_df.shape)
             # save_each_png(n_by_one_df, x_axis=1000, y_axis_l=0, y_axis_h=7)
             dataframes.append(n_by_one_df)
             seed_list.append(seed)
-            save_csv(n_by_one_df)
-            print("================================================\n\n")
+            # save_csv(n_by_one_df)
+            logging.info("================================================\n\n")
+
+
+            # 遍历每一列数据并分别绘制散点图
+            for i in range(n_by_one_df.shape[1]):
+                # 创建一个新的 figure
+                plt.figure(figsize=(15, 10))
+
+                # 获取 y 轴的值（取绝对值）
+                y = np.abs(n_by_one_df.iloc[:, i])
+                plt.scatter(range(n_by_one_df.shape[0]), y, label=f'feature_{i}', alpha=0.5)
+                # 设置坐标轴范围
+                plt.xlim(0, 1000)  # 设置 x 轴范围为 0-1000
+                plt.ylim(0, 5)     # 设置 y 轴范围为 0-5
+
+                # 添加图例
+                plt.legend(loc='upper right', bbox_to_anchor=(1.15, 1))
+
+                # 添加标题和标签
+                plt.title(f'Scatter Plot of Feature {i}')
+                plt.xlabel('Data Points')
+                plt.ylabel('Absolute Feature Values')
+
+                # 保存图像
+                plt.savefig(f'output/testing/scatter_plot_feature_{i}_seed_{args.seed}.png', dpi=300, bbox_inches='tight')
+                plt.close()
+            exit()
 # save_all_pngs(dataframes, seed_list, x_axis=1000, y_axis_l=0, y_axis_h=7)
 
